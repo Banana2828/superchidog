@@ -2,109 +2,233 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Super ChiDog</title>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Super Chidog</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+
 <style>
-body{margin:0;overflow:hidden;background:#6ec6ff}
-canvas{display:block}
+html, body {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background: #87ceeb;
+}
+canvas {
+  display: block;
+}
+
+/* Controls */
+.controls {
+  position: fixed;
+  bottom: 20px;
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  padding: 0 20px;
+}
+.left-controls {
+  display: flex;
+  gap: 20px;
+}
+.btn {
+  width: 70px;
+  height: 70px;
+  border-radius: 50%;
+  background: rgba(0,0,0,0.4);
+  color: white;
+  font-size: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+}
 </style>
 </head>
+
 <body>
 
 <canvas id="game"></canvas>
 
+<div class="controls">
+  <div class="left-controls">
+    <div class="btn" id="left">⬅️</div>
+    <div class="btn" id="right">➡️</div>
+  </div>
+  <div class="btn" id="jump">⬆️</div>
+</div>
+
 <script>
-const c = document.getElementById("game");
-const ctx = c.getContext("2d");
-c.width = innerWidth;
-c.height = innerHeight;
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
 
-const ground = c.height - 90;
-const gravity = 1;
-const jumpPower = -18;
-const speed = 6;
+function resize() {
+  canvas.width = innerWidth;
+  canvas.height = innerHeight;
+}
+resize();
+addEventListener("resize", resize);
 
-let dead = false;
+// Load dog
+const dog = new Image();
+dog.src = "dog.png";
 
-// DOG
-const dog = { x:120, y:ground-40, w:40, h:40, vy:0, rot:0 };
+// Player
+const player = {
+  x: 100,
+  y: 0,
+  w: 60,
+  h: 60,
+  vx: 0,
+  vy: 0,
+  speed: 5,
+  jumpCount: 0,
+  onGround: false,
+  health: 10
+};
 
-// OBSTACLE
-const obstacles = [{
-  x: c.width,
-  y: ground - 30,
-  r: 22
-}];
+let score = 0;
+const gravity = 0.8;
+const groundY = () => canvas.height - 120;
 
-// INPUT
-function jump(){
-  if(dog.y >= ground-dog.h && !dead){
-    dog.vy = jumpPower;
+// Obstacles & bones
+const obstacles = [];
+const bones = [];
+
+function spawnObstacle() {
+  obstacles.push({
+    x: canvas.width + Math.random() * 800,
+    y: groundY() - 40,
+    w: 40,
+    h: 40
+  });
+}
+
+function spawnBone() {
+  bones.push({
+    x: canvas.width + Math.random() * 800,
+    y: groundY() - 100 - Math.random() * 100,
+    r: 15,
+    value: Math.floor(Math.random() * 20) + 1
+  });
+}
+
+for (let i = 0; i < 5; i++) {
+  spawnObstacle();
+  spawnBone();
+}
+
+// Controls
+let moveLeft = false;
+let moveRight = false;
+
+left.ontouchstart = () => moveLeft = true;
+left.ontouchend = () => moveLeft = false;
+
+right.ontouchstart = () => moveRight = true;
+right.ontouchend = () => moveRight = false;
+
+let lastJump = 0;
+jump.ontouchstart = () => {
+  const now = Date.now();
+  if (player.onGround || player.jumpCount < 2) {
+    player.vy = -15;
+    player.jumpCount++;
+    player.onGround = false;
   }
-}
-addEventListener("touchstart", jump);
-addEventListener("mousedown", jump);
+  lastJump = now;
+};
 
-// COLLISION
-function hit(d,o){
-  const cx = Math.max(d.x, Math.min(o.x, d.x+d.w));
-  const cy = Math.max(d.y, Math.min(o.y, d.y+d.h));
-  const dx = o.x - cx;
-  const dy = o.y - cy;
-  return dx*dx + dy*dy < o.r*o.r;
+// Collision
+function hit(a, b) {
+  return a.x < b.x + b.w &&
+         a.x + a.w > b.x &&
+         a.y < b.y + b.h &&
+         a.y + a.h > b.y;
 }
 
-// LOOP
-function loop(){
-  ctx.clearRect(0,0,c.width,c.height);
+// Game loop
+function loop() {
+  ctx.clearRect(0,0,canvas.width,canvas.height);
 
-  // ground
-  ctx.fillStyle="#3cb043";
-  ctx.fillRect(0,ground,c.width,90);
+  // Sky
+  ctx.fillStyle = "#87ceeb";
+  ctx.fillRect(0,0,canvas.width,canvas.height);
 
-  if(!dead){
-    dog.vy += gravity;
-    dog.y += dog.vy;
-    if(dog.y > ground-dog.h){ dog.y = ground-dog.h; dog.vy=0; }
+  // Clouds
+  ctx.fillStyle = "white";
+  for (let i = 0; i < 4; i++) {
+    ctx.beginPath();
+    ctx.arc(200 + i*300, 100, 40, 0, Math.PI*2);
+    ctx.fill();
+  }
 
-    obstacles[0].x -= speed;
-    if(obstacles[0].x < -50){
-      obstacles[0].x = c.width + 200;
+  // Ground
+  ctx.fillStyle = "#4caf50";
+  ctx.fillRect(0, groundY(), canvas.width, 120);
+
+  // Movement
+  if (moveLeft) player.vx = -player.speed;
+  else if (moveRight) player.vx = player.speed;
+  else player.vx = 0;
+
+  player.vy += gravity;
+  player.x += player.vx;
+  player.y += player.vy;
+
+  if (player.y + player.h >= groundY()) {
+    player.y = groundY() - player.h;
+    player.vy = 0;
+    player.onGround = true;
+    player.jumpCount = 0;
+  }
+
+  // Draw dog
+  ctx.drawImage(dog, player.x, player.y, player.w, player.h);
+
+  // Obstacles
+  obstacles.forEach(o => {
+    o.x -= 3;
+    ctx.fillStyle = "red";
+    ctx.fillRect(o.x, o.y, o.w, o.h);
+    if (hit(player, o)) {
+      player.health--;
+      o.x = -999;
     }
+  });
 
-    if(hit(dog, obstacles[0])) dead = true;
+  // Bones
+  bones.forEach(b => {
+    b.x -= 3;
+    ctx.fillStyle = "white";
+    ctx.beginPath();
+    ctx.arc(b.x, b.y, b.r, 0, Math.PI*2);
+    ctx.fill();
+    if (player.x < b.x + b.r &&
+        player.x + player.w > b.x - b.r &&
+        player.y < b.y + b.r &&
+        player.y + player.h > b.y - b.r) {
+      score += b.value;
+      b.x = -999;
+    }
+  });
 
-    if(dog.vy!==0) dog.rot+=0.15;
-    else dog.rot=0;
-  }
+  // UI
+  ctx.fillStyle = "#000";
+  ctx.font = "20px Arial";
+  ctx.fillText("Score: " + score, 20, 30);
 
-  // obstacle
-  ctx.fillStyle="red";
-  ctx.beginPath();
-  ctx.arc(obstacles[0].x, obstacles[0].y, obstacles[0].r, 0, Math.PI*2);
-  ctx.fill();
-
-  // dog
-  ctx.save();
-  ctx.translate(dog.x+dog.w/2, dog.y+dog.h/2);
-  ctx.rotate(dog.rot);
-  ctx.fillStyle="white";
-  ctx.beginPath();
-  ctx.arc(0,0,dog.w/2,0,Math.PI*2);
-  ctx.fill();
-  ctx.restore();
-
-  if(dead){
-    ctx.fillStyle="#000";
-    ctx.font="bold 36px Arial";
-    ctx.textAlign="center";
-    ctx.fillText("GAME OVER", c.width/2, c.height/2);
+  ctx.fillText("Health:", 20, 60);
+  for (let i = 0; i < 10; i++) {
+    ctx.strokeRect(90 + i*22, 45, 20, 20);
+    if (i < player.health) {
+      ctx.fillStyle = "green";
+      ctx.fillRect(90 + i*22, 45, 20, 20);
+    }
   }
 
   requestAnimationFrame(loop);
 }
+
 loop();
 </script>
-
 </body>
 </html>
