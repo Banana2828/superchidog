@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Floppy Dog</title>
+<title>SuperChidog</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <style>
@@ -30,10 +30,10 @@ const ctx = canvas.getContext("2d");
 canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
 
-// WORLD
+// CONSTANTS
 const groundHeight = 120;
-const gravity = 0.7;
-const jumpPower = -15;
+const gravity = 0.8;
+const jumpPower = -16;
 const moveSpeed = 5;
 
 // PLAYER
@@ -45,7 +45,7 @@ const player = {
   y: 0,
   w: 60,
   h: 60,
-  vx: 0,
+  vx: moveSpeed,
   vy: 0,
   onGround: false
 };
@@ -53,22 +53,24 @@ const player = {
 // CAMERA
 let cameraX = 0;
 
-// INPUT
-let touching = false;
+// PLATFORMS (Mario-style)
+const platforms = [
+  { x: 300, y: 450, w: 120, h: 20 },
+  { x: 550, y: 380, w: 120, h: 20 },
+  { x: 800, y: 320, w: 120, h: 20 },
+  { x: 1100, y: 400, w: 120, h: 20 },
+  { x: 1400, y: 350, w: 120, h: 20 },
+  { x: 1700, y: 300, w: 120, h: 20 }
+];
 
+// INPUT
 window.addEventListener("touchstart", () => {
   if (player.onGround) {
     player.vy = jumpPower;
     player.onGround = false;
   }
-  touching = true;
 });
 
-window.addEventListener("touchend", () => {
-  touching = false;
-});
-
-// DESKTOP SUPPORT
 window.addEventListener("keydown", e => {
   if (e.code === "Space" && player.onGround) {
     player.vy = jumpPower;
@@ -78,13 +80,10 @@ window.addEventListener("keydown", e => {
 
 // GAME LOOP
 function update() {
-  // AUTO RUN (Mario-style)
-  player.vx = moveSpeed;
-
-  // PHYSICS
   player.vy += gravity;
   player.x += player.vx;
   player.y += player.vy;
+  player.onGround = false;
 
   // GROUND COLLISION
   const groundY = canvas.height - groundHeight - player.h;
@@ -93,6 +92,21 @@ function update() {
     player.vy = 0;
     player.onGround = true;
   }
+
+  // PLATFORM COLLISION
+  platforms.forEach(p => {
+    if (
+      player.x + player.w > p.x &&
+      player.x < p.x + p.w &&
+      player.y + player.h >= p.y &&
+      player.y + player.h <= p.y + p.h &&
+      player.vy >= 0
+    ) {
+      player.y = p.y - player.h;
+      player.vy = 0;
+      player.onGround = true;
+    }
+  });
 
   // CAMERA FOLLOW
   cameraX = player.x - canvas.width / 3;
@@ -110,7 +124,13 @@ function draw() {
 
   // GROUND
   ctx.fillStyle = "#4caf50";
-  ctx.fillRect(cameraX, canvas.height - groundHeight, canvas.width + 1000, groundHeight);
+  ctx.fillRect(cameraX, canvas.height - groundHeight, canvas.width + 2000, groundHeight);
+
+  // PLATFORMS
+  ctx.fillStyle = "#8d6e63";
+  platforms.forEach(p => {
+    ctx.fillRect(p.x, p.y, p.w, p.h);
+  });
 
   // DOG
   ctx.drawImage(dogImg, player.x, player.y, player.w, player.h);
