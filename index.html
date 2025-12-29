@@ -1,19 +1,12 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
 <meta charset="UTF-8">
 <title>Super ChiDog</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
-  body {
-    margin: 0;
-    overflow: hidden;
-    background: #5c94fc;
-    touch-action: manipulation;
-  }
-  canvas {
-    display: block;
-  }
+body{margin:0;overflow:hidden;background:#6ec6ff}
+canvas{display:block}
 </style>
 </head>
 <body>
@@ -21,149 +14,93 @@
 <canvas id="game"></canvas>
 
 <script>
-const canvas = document.getElementById("game");
-const ctx = canvas.getContext("2d");
+const c = document.getElementById("game");
+const ctx = c.getContext("2d");
+c.width = innerWidth;
+c.height = innerHeight;
 
-canvas.width = window.innerWidth;
-canvas.height = window.innerHeight;
+const ground = c.height - 90;
+const gravity = 1;
+const jumpPower = -18;
+const speed = 6;
 
-const gravity = 0.9;
-const jumpPower = -16;
-const speed = 5;
-const groundHeight = 80;
+let dead = false;
 
-let gameOver = false;
+// DOG
+const dog = { x:120, y:ground-40, w:40, h:40, vy:0, rot:0 };
 
-// PLAYER
-const player = {
-  x: 120,
-  y: 0,
-  w: 40,
-  h: 40,
-  vy: 0,
-  onGround: false,
-  rot: 0
-};
-
-// OBSTACLES (BALLS)
-const obstacles = [];
-function spawnObstacle() {
-  obstacles.push({
-    x: canvas.width + Math.random() * 300,
-    y: canvas.height - groundHeight - 30,
-    r: 20
-  });
-}
-setInterval(spawnObstacle, 1800);
+// OBSTACLE
+const obstacles = [{
+  x: c.width,
+  y: ground - 30,
+  r: 22
+}];
 
 // INPUT
-function jump() {
-  if (player.onGround && !gameOver) {
-    player.vy = jumpPower;
-    player.onGround = false;
+function jump(){
+  if(dog.y >= ground-dog.h && !dead){
+    dog.vy = jumpPower;
   }
 }
-window.addEventListener("touchstart", jump);
-window.addEventListener("mousedown", jump);
+addEventListener("touchstart", jump);
+addEventListener("mousedown", jump);
 
 // COLLISION
-function hitCircle(px, py, pw, ph, cx, cy, cr) {
-  const closestX = Math.max(px, Math.min(cx, px + pw));
-  const closestY = Math.max(py, Math.min(cy, py + ph));
-  const dx = cx - closestX;
-  const dy = cy - closestY;
-  return dx * dx + dy * dy < cr * cr;
-}
-
-// UPDATE
-function update() {
-  if (gameOver) return;
-
-  player.vy += gravity;
-  player.y += player.vy;
-  player.onGround = false;
-
-  const groundY = canvas.height - groundHeight - player.h;
-  if (player.y >= groundY) {
-    player.y = groundY;
-    player.vy = 0;
-    player.onGround = true;
-  }
-
-  // rotate while jumping
-  if (!player.onGround) player.rot += 0.15;
-  else player.rot = 0;
-
-  obstacles.forEach(o => {
-    o.x -= speed;
-
-    if (
-      hitCircle(
-        player.x,
-        player.y,
-        player.w,
-        player.h,
-        o.x,
-        o.y,
-        o.r
-      )
-    ) {
-      gameOver = true;
-    }
-  });
-
-  // remove offscreen obstacles
-  for (let i = obstacles.length - 1; i >= 0; i--) {
-    if (obstacles[i].x + obstacles[i].r < 0) {
-      obstacles.splice(i, 1);
-    }
-  }
-}
-
-// DRAW
-function draw() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-  // sky
-  ctx.fillStyle = "#5c94fc";
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-  // ground
-  ctx.fillStyle = "#3cb043";
-  ctx.fillRect(0, canvas.height - groundHeight, canvas.width, groundHeight);
-
-  // obstacles
-  ctx.fillStyle = "red";
-  obstacles.forEach(o => {
-    ctx.beginPath();
-    ctx.arc(o.x, o.y, o.r, 0, Math.PI * 2);
-    ctx.fill();
-  });
-
-  // dog
-  ctx.save();
-  ctx.translate(player.x + player.w / 2, player.y + player.h / 2);
-  ctx.rotate(player.rot);
-  ctx.fillStyle = "white";
-  ctx.beginPath();
-  ctx.arc(0, 0, player.w / 2, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.restore();
-
-  if (gameOver) {
-    ctx.fillStyle = "black";
-    ctx.font = "bold 40px Arial";
-    ctx.textAlign = "center";
-    ctx.fillText("GAME OVER", canvas.width / 2, canvas.height / 2);
-    ctx.font = "20px Arial";
-    ctx.fillText("Refresh to retry", canvas.width / 2, canvas.height / 2 + 40);
-  }
+function hit(d,o){
+  const cx = Math.max(d.x, Math.min(o.x, d.x+d.w));
+  const cy = Math.max(d.y, Math.min(o.y, d.y+d.h));
+  const dx = o.x - cx;
+  const dy = o.y - cy;
+  return dx*dx + dy*dy < o.r*o.r;
 }
 
 // LOOP
-function loop() {
-  update();
-  draw();
+function loop(){
+  ctx.clearRect(0,0,c.width,c.height);
+
+  // ground
+  ctx.fillStyle="#3cb043";
+  ctx.fillRect(0,ground,c.width,90);
+
+  if(!dead){
+    dog.vy += gravity;
+    dog.y += dog.vy;
+    if(dog.y > ground-dog.h){ dog.y = ground-dog.h; dog.vy=0; }
+
+    obstacles[0].x -= speed;
+    if(obstacles[0].x < -50){
+      obstacles[0].x = c.width + 200;
+    }
+
+    if(hit(dog, obstacles[0])) dead = true;
+
+    if(dog.vy!==0) dog.rot+=0.15;
+    else dog.rot=0;
+  }
+
+  // obstacle
+  ctx.fillStyle="red";
+  ctx.beginPath();
+  ctx.arc(obstacles[0].x, obstacles[0].y, obstacles[0].r, 0, Math.PI*2);
+  ctx.fill();
+
+  // dog
+  ctx.save();
+  ctx.translate(dog.x+dog.w/2, dog.y+dog.h/2);
+  ctx.rotate(dog.rot);
+  ctx.fillStyle="white";
+  ctx.beginPath();
+  ctx.arc(0,0,dog.w/2,0,Math.PI*2);
+  ctx.fill();
+  ctx.restore();
+
+  if(dead){
+    ctx.fillStyle="#000";
+    ctx.font="bold 36px Arial";
+    ctx.textAlign="center";
+    ctx.fillText("GAME OVER", c.width/2, c.height/2);
+  }
+
   requestAnimationFrame(loop);
 }
 loop();
