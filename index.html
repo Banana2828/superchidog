@@ -1,216 +1,181 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>SuperChidog</title>
+<meta charset="UTF-8">
+<title>Super ChiDog 🐶</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <style>
-  html, body {
-    margin: 0;
-    padding: 0;
-    background: #5c94fc; /* Mario-sky vibe */
-    touch-action: none;
-  }
+body {
+  margin: 0;
+  overflow: hidden;
+  background: linear-gradient(#6ec6ff, #ccefff);
+  touch-action: manipulation;
+  font-family: Arial, sans-serif;
+}
 
-  canvas {
-    display: block;
-    margin: 0 auto;
-    background: linear-gradient(#5c94fc, #9be2ff);
-  }
+#game {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+}
+
+#ground {
+  position: absolute;
+  bottom: 0;
+  width: 100%;
+  height: 80px;
+  background: repeating-linear-gradient(
+    90deg,
+    #8b4513 0px,
+    #8b4513 40px,
+    #a0522d 40px,
+    #a0522d 80px
+  );
+}
+
+#dog {
+  position: absolute;
+  width: 60px;
+  height: 60px;
+  bottom: 80px;
+  left: 50px;
+  transition: transform 0.1s linear;
+}
+
+.item {
+  position: absolute;
+  width: 40px;
+  height: 40px;
+}
+
+.bone { background: 🦴; }
+.bomb { background: 💣; }
+.health { background: ❤️; }
+
+#ui {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  color: white;
+  font-size: 18px;
+  text-shadow: 1px 1px 2px black;
+}
 </style>
 </head>
 
 <body>
+<div id="game">
+  <div id="ui">
+    ❤️ <span id="health">10</span> |
+    🦴 Score: <span id="score">0</span>
+  </div>
 
-<canvas id="game" width="360" height="640"></canvas>
+  <img id="dog" src="dog.png">
+  <div id="ground"></div>
+</div>
 
 <script>
-/* ======================
-   BASIC SETUP
-====================== */
-const canvas = document.getElementById("game");
-const ctx = canvas.getContext("2d");
+const dog = document.getElementById("dog");
+const scoreEl = document.getElementById("score");
+const healthEl = document.getElementById("health");
 
-/* ======================
-   LOAD DOG IMAGE
-   👉 Replace URL with your dog photo later
-====================== */
-const dogImg = new Image();
-dogImg.src = "https://i.imgur.com/4AiXzf8.png"; // placeholder dog
+let x = 50;
+let y = 80;
+let vy = 0;
+let gravity = 0.8;
+let jumping = false;
+let spin = 0;
 
-/* ======================
-   PLAYER
-====================== */
-let dog = {
-  x: 80,
-  y: 400,
-  w: 50,
-  h: 50,
-  vy: 0,
-  rotation: 0,
-  health: 10,
-  score: 0
-};
+let score = 0;
+let health = 10;
+let items = [];
 
-const gravity = 0.5;
-const jumpPower = -9;
+function spawnItem() {
+  const typeRand = Math.random();
+  let type = "bone";
+  if (typeRand > 0.8) type = "bomb";
+  if (typeRand > 0.95) type = "health";
 
-/* ======================
-   OBJECTS
-====================== */
-let bones = [];
-let bombs = [];
-let hearts = [];
+  const item = document.createElement("div");
+  item.className = "item " + type;
+  item.dataset.type = type;
+  item.dataset.points = Math.floor(Math.random() * 20) + 1;
+  item.style.left = innerWidth + "px";
+  item.style.bottom = "120px";
 
-/* ======================
-   INPUT (touch anywhere)
-====================== */
-canvas.addEventListener("mousedown", jump);
-canvas.addEventListener("touchstart", jump);
-
-function jump() {
-  dog.vy = jumpPower;
+  document.getElementById("game").appendChild(item);
+  items.push(item);
 }
 
-/* ======================
-   SPAWNERS
-====================== */
-function spawnBone() {
-  bones.push({
-    x: canvas.width,
-    y: Math.random() * 400 + 120,
-    r: 10,
-    value: Math.floor(Math.random() * 20) + 1
-  });
-}
+setInterval(spawnItem, 2000);
 
-function spawnBomb() {
-  bombs.push({
-    x: canvas.width,
-    y: Math.random() * 400 + 120,
-    r: 12
-  });
-}
-
-function spawnHeart() {
-  hearts.push({
-    x: canvas.width,
-    y: Math.random() * 400 + 120,
-    r: 10
-  });
-}
-
-setInterval(spawnBone, 1600);
-setInterval(spawnBomb, 2800);
-setInterval(() => {
-  if (Math.random() < 0.3) spawnHeart(); // rare
-}, 5000);
-
-/* ======================
-   GAME LOOP
-====================== */
 function update() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  vy -= gravity;
+  y += vy;
 
-  /* ----- physics ----- */
-  dog.vy += gravity;
-  dog.y += dog.vy;
-
-  if (dog.y + dog.h > canvas.height - 40) {
-    dog.y = canvas.height - 40 - dog.h;
-    dog.vy = 0;
-    dog.rotation = 0;
+  if (y <= 80) {
+    y = 80;
+    vy = 0;
+    jumping = false;
   }
 
-  if (dog.vy < 0) dog.rotation += 0.15;
-
-  /* ----- draw ground ----- */
-  ctx.fillStyle = "#4caf50";
-  ctx.fillRect(0, canvas.height - 40, canvas.width, 40);
-
-  /* ----- draw dog ----- */
-  ctx.save();
-  ctx.translate(dog.x + dog.w/2, dog.y + dog.h/2);
-  ctx.rotate(dog.rotation);
-  ctx.drawImage(dogImg, -dog.w/2, -dog.h/2, dog.w, dog.h);
-  ctx.restore();
-
-  /* ----- bones ----- */
-  bones.forEach((b, i) => {
-    b.x -= 3;
-    ctx.fillStyle = "#fff";
-    ctx.beginPath();
-    ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
-    ctx.fill();
-
-    if (hit(b)) {
-      dog.score += b.value;
-      bones.splice(i, 1);
-    }
-  });
-
-  /* ----- bombs ----- */
-  bombs.forEach((b, i) => {
-    b.x -= 4;
-    ctx.fillStyle = "black";
-    ctx.beginPath();
-    ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
-    ctx.fill();
-
-    if (hit(b)) {
-      dog.health--;
-      bombs.splice(i, 1);
-    }
-  });
-
-  /* ----- hearts ----- */
-  hearts.forEach((h, i) => {
-    h.x -= 2;
-    ctx.fillStyle = "red";
-    ctx.beginPath();
-    ctx.arc(h.x, h.y, h.r, 0, Math.PI * 2);
-    ctx.fill();
-
-    if (hit(h)) {
-      dog.health = Math.min(10, dog.health + 1);
-      hearts.splice(i, 1);
-    }
-  });
-
-  /* ----- UI ----- */
-  ctx.fillStyle = "#000";
-  ctx.font = "16px Arial";
-  ctx.fillText("🐶 SuperChidog", 10, 20);
-  ctx.fillText("🦴 Score: " + dog.score, 10, 40);
-  ctx.fillText("❤️ Health: " + dog.health, 10, 60);
-
-  if (dog.health <= 0) {
-    ctx.fillStyle = "rgba(0,0,0,0.7)";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = "#fff";
-    ctx.font = "30px Arial";
-    ctx.fillText("GAME OVER", 90, 320);
-    return;
+  if (jumping) {
+    spin += 15;
+    dog.style.transform = `rotate(${spin}deg)`;
+  } else {
+    dog.style.transform = "rotate(0deg)";
   }
 
-  requestAnimationFrame(update);
-}
+  dog.style.left = x + "px";
+  dog.style.bottom = y + "px";
 
-/* ======================
-   COLLISION
-====================== */
-function hit(obj) {
-  return (
-    dog.x < obj.x + obj.r &&
-    dog.x + dog.w > obj.x - obj.r &&
-    dog.y < obj.y + obj.r &&
-    dog.y + dog.h > obj.y - obj.r
-  );
+  items.forEach((item, i) => {
+    let ix = parseInt(item.style.left);
+    item.style.left = ix - 4 + "px";
+
+    const dx = ix - x;
+    if (dx < 40 && dx > -40 && y < 120) {
+      if (item.dataset.type === "bone") {
+        score += parseInt(item.dataset.points);
+      } else if (item.dataset.type === "bomb") {
+        health--;
+      } else if (item.dataset.type === "health") {
+        health = Math.min(10, health + 1);
+      }
+
+      scoreEl.textContent = score;
+      healthEl.textContent = health;
+      item.remove();
+      items.splice(i, 1);
+    }
+
+    if (ix < -50) {
+      item.remove();
+      items.splice(i, 1);
+    }
+  });
+
+  if (health > 0) requestAnimationFrame(update);
 }
 
 update();
-</script>
 
+document.addEventListener("touchstart", e => {
+  if (!jumping) {
+    vy = 15;
+    jumping = true;
+  }
+  x += 20;
+});
+
+document.addEventListener("click", () => {
+  if (!jumping) {
+    vy = 15;
+    jumping = true;
+  }
+  x += 20;
+});
+</script>
 </body>
 </html>
