@@ -1,151 +1,22 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-<meta charset="UTF-8">
-<title>Super ChiDog</title>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TEST</title>
 <style>
-  body {
-    margin: 0;
-    overflow: hidden;
-    background: #5c94fc;
-    touch-action: manipulation;
-  }
-  canvas {
-    display: block;
-    background: linear-gradient(#5c94fc, #a0d8ff);
-  }
+body {
+  margin: 0;
+  background: red;
+  animation: flash 0.5s infinite alternate;
+}
+@keyframes flash {
+  from { background: red; }
+  to { background: yellow; }
+}
 </style>
 </head>
 <body>
-
-<canvas id="game"></canvas>
-
-<script>
-const canvas = document.getElementById("game");
-const ctx = canvas.getContext("2d");
-
-canvas.width = window.innerWidth;
-canvas.height = window.innerHeight;
-
-const gravity = 0.8;
-const jumpPower = -15;
-const speed = 4;
-const groundHeight = 80;
-
-// PLAYER
-const player = {
-  x: 100,
-  y: 0,
-  w: 40,
-  h: 40,
-  vy: 0,
-  onGround: false,
-  rotation: 0
-};
-
-// PLATFORMS
-const platforms = [];
-for (let i = 0; i < 6; i++) {
-  platforms.push({
-    x: i * 250,
-    y: canvas.height - groundHeight - (Math.random() * 150),
-    w: 200,
-    h: 20
-  });
-}
-
-// INPUT
-window.addEventListener("touchstart", () => {
-  if (player.onGround) {
-    player.vy = jumpPower;
-    player.onGround = false;
-  }
-});
-window.addEventListener("mousedown", () => {
-  if (player.onGround) {
-    player.vy = jumpPower;
-    player.onGround = false;
-  }
-});
-
-// UPDATE
-function update() {
-  player.vy += gravity;
-  player.y += player.vy;
-  player.onGround = false;
-
-  const groundY = canvas.height - groundHeight - player.h;
-  if (player.y >= groundY) {
-    player.y = groundY;
-    player.vy = 0;
-    player.onGround = true;
-  }
-
-  platforms.forEach(p => {
-    p.x -= speed;
-
-    // collision
-    if (
-      player.x + player.w > p.x &&
-      player.x < p.x + p.w &&
-      player.y + player.h >= p.y &&
-      player.y + player.h <= p.y + p.h &&
-      player.vy >= 0
-    ) {
-      player.y = p.y - player.h;
-      player.vy = 0;
-      player.onGround = true;
-    }
-
-    // recycle
-    if (p.x + p.w < 0) {
-      p.x = canvas.width + Math.random() * 300;
-      p.y = canvas.height - groundHeight - (Math.random() * 150);
-    }
-  });
-
-  if (!player.onGround) {
-    player.rotation += 0.1;
-  } else {
-    player.rotation = 0;
-  }
-}
-
-// DRAW
-function draw() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-  // ground
-  ctx.fillStyle = "#3cb043";
-  ctx.fillRect(0, canvas.height - groundHeight, canvas.width, groundHeight);
-
-  // platforms
-  ctx.fillStyle = "#8b4513";
-  platforms.forEach(p => {
-    ctx.fillRect(p.x, p.y, p.w, p.h);
-  });
-
-  // player (dog placeholder)
-  ctx.save();
-  ctx.translate(player.x + player.w / 2, player.y + player.h / 2);
-  ctx.rotate(player.rotation);
-  ctx.fillStyle = "white";
-  ctx.beginPath();
-  ctx.arc(0, 0, player.w / 2, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.restore();
-}
-
-// LOOP
-function loop() {
-  update();
-  draw();
-  requestAnimationFrame(loop);
-}
-
-loop();
-</script>
-
+<h1 style="color:white;text-align:center;margin-top:40vh;">
+IF YOU SEE FLASHING COLORS, GITHUB IS UPDATED
+</h1>
 </body>
 </html>
