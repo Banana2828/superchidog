@@ -2,117 +2,134 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Floppy Dog</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <style>
 html, body {
   margin: 0;
   padding: 0;
   overflow: hidden;
+  background: #6ec6ff;
   touch-action: none;
-  background: linear-gradient(#6ec6ff, #cfefff);
-  font-family: sans-serif;
 }
 
-/* GAME WORLD */
-#game {
-  position: relative;
-  width: 100vw;
-  height: 100vh;
-}
-
-/* GROUND */
-#ground {
-  position: absolute;
-  bottom: 0;
-  width: 100%;
-  height: 120px;
-  background: linear-gradient(#6ab04c, #2d7d46);
-}
-
-/* DOG */
-#dog {
-  position: absolute;
-  width: 80px;
-  left: 50%;
-  bottom: 120px;
-  transform: translateX(-50%);
-  user-select: none;
-}
-
-/* UI */
-#hint {
-  position: absolute;
-  top: 10px;
-  width: 100%;
-  text-align: center;
-  font-size: 16px;
-  opacity: 0.8;
+canvas {
+  display: block;
 }
 </style>
 </head>
 
 <body>
-<div id="game">
-  <div id="hint">Tap LEFT / RIGHT to move · Tap TOP to jump</div>
-  <img id="dog" src="dog.png">
-  <div id="ground"></div>
-</div>
+<canvas id="game"></canvas>
 
 <script>
-const dog = document.getElementById("dog");
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
 
-let x = window.innerWidth / 2;
-let y = window.innerHeight - 200;
-let vy = 0;
-let onGround = false;
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
 
-const gravity = 1;
-const jumpPower = 18;
-const speed = 6;
+// WORLD
+const groundHeight = 120;
+const gravity = 0.7;
+const jumpPower = -15;
+const moveSpeed = 5;
 
-function update() {
-  vy += gravity;
-  y += vy;
+// PLAYER
+const dogImg = new Image();
+dogImg.src = "dog.png";
 
-  const groundY = window.innerHeight - 120 - 80;
-  if (y >= groundY) {
-    y = groundY;
-    vy = 0;
-    onGround = true;
+const player = {
+  x: 100,
+  y: 0,
+  w: 60,
+  h: 60,
+  vx: 0,
+  vy: 0,
+  onGround: false
+};
+
+// CAMERA
+let cameraX = 0;
+
+// INPUT
+let touching = false;
+
+window.addEventListener("touchstart", () => {
+  if (player.onGround) {
+    player.vy = jumpPower;
+    player.onGround = false;
   }
+  touching = true;
+});
 
-  dog.style.left = x + "px";
-  dog.style.top = y + "px";
+window.addEventListener("touchend", () => {
+  touching = false;
+});
 
-  requestAnimationFrame(update);
-}
-update();
-
-/* TOUCH CONTROLS */
-document.addEventListener("touchstart", e => {
-  const touchX = e.touches[0].clientX;
-  const touchY = e.touches[0].clientY;
-
-  if (touchY < window.innerHeight / 2 && onGround) {
-    vy = -jumpPower;
-    onGround = false;
-  } else if (touchX < window.innerWidth / 2) {
-    x -= speed * 10;
-  } else {
-    x += speed * 10;
+// DESKTOP SUPPORT
+window.addEventListener("keydown", e => {
+  if (e.code === "Space" && player.onGround) {
+    player.vy = jumpPower;
+    player.onGround = false;
   }
 });
 
-/* DESKTOP TEST */
-document.addEventListener("keydown", e => {
-  if (e.key === "ArrowLeft") x -= speed * 10;
-  if (e.key === "ArrowRight") x += speed * 10;
-  if (e.key === " " && onGround) {
-    vy = -jumpPower;
-    onGround = false;
+// GAME LOOP
+function update() {
+  // AUTO RUN (Mario-style)
+  player.vx = moveSpeed;
+
+  // PHYSICS
+  player.vy += gravity;
+  player.x += player.vx;
+  player.y += player.vy;
+
+  // GROUND COLLISION
+  const groundY = canvas.height - groundHeight - player.h;
+  if (player.y >= groundY) {
+    player.y = groundY;
+    player.vy = 0;
+    player.onGround = true;
   }
+
+  // CAMERA FOLLOW
+  cameraX = player.x - canvas.width / 3;
+}
+
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // SKY
+  ctx.fillStyle = "#6ec6ff";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  ctx.save();
+  ctx.translate(-cameraX, 0);
+
+  // GROUND
+  ctx.fillStyle = "#4caf50";
+  ctx.fillRect(cameraX, canvas.height - groundHeight, canvas.width + 1000, groundHeight);
+
+  // DOG
+  ctx.drawImage(dogImg, player.x, player.y, player.w, player.h);
+
+  ctx.restore();
+}
+
+function loop() {
+  update();
+  draw();
+  requestAnimationFrame(loop);
+}
+
+loop();
+
+// RESIZE
+window.addEventListener("resize", () => {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
 });
 </script>
 </body>
