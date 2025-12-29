@@ -29,34 +29,36 @@ canvas.height = window.innerHeight;
 
 const gravity = 0.9;
 const jumpPower = -16;
-const runSpeed = 5;
+const speed = 5;
 const groundHeight = 80;
+
+let gameOver = false;
 
 // PLAYER
 const player = {
   x: 120,
   y: 0,
-  w: 42,
-  h: 42,
+  w: 40,
+  h: 40,
   vy: 0,
   onGround: false,
   rot: 0
 };
 
-// PLATFORMS
-const platforms = [];
-for (let i = 0; i < 7; i++) {
-  platforms.push({
-    x: i * 260,
-    y: canvas.height - groundHeight - 120 - Math.random() * 120,
-    w: 220,
-    h: 22
+// OBSTACLES (BALLS)
+const obstacles = [];
+function spawnObstacle() {
+  obstacles.push({
+    x: canvas.width + Math.random() * 300,
+    y: canvas.height - groundHeight - 30,
+    r: 20
   });
 }
+setInterval(spawnObstacle, 1800);
 
-// INPUT (tap anywhere)
+// INPUT
 function jump() {
-  if (player.onGround) {
+  if (player.onGround && !gameOver) {
     player.vy = jumpPower;
     player.onGround = false;
   }
@@ -64,13 +66,23 @@ function jump() {
 window.addEventListener("touchstart", jump);
 window.addEventListener("mousedown", jump);
 
+// COLLISION
+function hitCircle(px, py, pw, ph, cx, cy, cr) {
+  const closestX = Math.max(px, Math.min(cx, px + pw));
+  const closestY = Math.max(py, Math.min(cy, py + ph));
+  const dx = cx - closestX;
+  const dy = cy - closestY;
+  return dx * dx + dy * dy < cr * cr;
+}
+
 // UPDATE
 function update() {
+  if (gameOver) return;
+
   player.vy += gravity;
   player.y += player.vy;
   player.onGround = false;
 
-  // ground collision
   const groundY = canvas.height - groundHeight - player.h;
   if (player.y >= groundY) {
     player.y = groundY;
@@ -78,35 +90,33 @@ function update() {
     player.onGround = true;
   }
 
-  // platforms move + collide
-  platforms.forEach(p => {
-    p.x -= runSpeed;
+  // rotate while jumping
+  if (!player.onGround) player.rot += 0.15;
+  else player.rot = 0;
 
-    // collision from above
+  obstacles.forEach(o => {
+    o.x -= speed;
+
     if (
-      player.x + player.w > p.x &&
-      player.x < p.x + p.w &&
-      player.y + player.h >= p.y &&
-      player.y + player.h <= p.y + p.h &&
-      player.vy >= 0
+      hitCircle(
+        player.x,
+        player.y,
+        player.w,
+        player.h,
+        o.x,
+        o.y,
+        o.r
+      )
     ) {
-      player.y = p.y - player.h;
-      player.vy = 0;
-      player.onGround = true;
-    }
-
-    // recycle platform
-    if (p.x + p.w < 0) {
-      p.x = canvas.width + Math.random() * 300;
-      p.y = canvas.height - groundHeight - 120 - Math.random() * 150;
+      gameOver = true;
     }
   });
 
-  // rotation while jumping
-  if (!player.onGround) {
-    player.rot += 0.15;
-  } else {
-    player.rot = 0;
+  // remove offscreen obstacles
+  for (let i = obstacles.length - 1; i >= 0; i--) {
+    if (obstacles[i].x + obstacles[i].r < 0) {
+      obstacles.splice(i, 1);
+    }
   }
 }
 
@@ -122,21 +132,32 @@ function draw() {
   ctx.fillStyle = "#3cb043";
   ctx.fillRect(0, canvas.height - groundHeight, canvas.width, groundHeight);
 
-  // platforms
-  ctx.fillStyle = "#8b4513";
-  platforms.forEach(p => {
-    ctx.fillRect(p.x, p.y, p.w, p.h);
+  // obstacles
+  ctx.fillStyle = "red";
+  obstacles.forEach(o => {
+    ctx.beginPath();
+    ctx.arc(o.x, o.y, o.r, 0, Math.PI * 2);
+    ctx.fill();
   });
 
-  // player (placeholder dog)
+  // dog
   ctx.save();
-  ctx.translate(player.x + player.w/2, player.y + player.h/2);
+  ctx.translate(player.x + player.w / 2, player.y + player.h / 2);
   ctx.rotate(player.rot);
   ctx.fillStyle = "white";
   ctx.beginPath();
-  ctx.arc(0, 0, player.w/2, 0, Math.PI * 2);
+  ctx.arc(0, 0, player.w / 2, 0, Math.PI * 2);
   ctx.fill();
   ctx.restore();
+
+  if (gameOver) {
+    ctx.fillStyle = "black";
+    ctx.font = "bold 40px Arial";
+    ctx.textAlign = "center";
+    ctx.fillText("GAME OVER", canvas.width / 2, canvas.height / 2);
+    ctx.font = "20px Arial";
+    ctx.fillText("Refresh to retry", canvas.width / 2, canvas.height / 2 + 40);
+  }
 }
 
 // LOOP
@@ -145,7 +166,6 @@ function loop() {
   draw();
   requestAnimationFrame(loop);
 }
-
 loop();
 </script>
 
