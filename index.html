@@ -1,13 +1,11 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-<meta charset="UTF-8">
+<meta charset="utf-8">
 <title>SuperChiDog</title>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<script src="https://cdn.jsdelivr.net/npm/phaser@3/dist/phaser.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/phaser@3.80.1/dist/phaser.min.js"></script>
 <style>
-body { margin:0; background:#5c94fc; }
-canvas { display:block; margin:0 auto; }
+body { margin:0; background:#5c94fc; overflow:hidden; }
 </style>
 </head>
 <body>
@@ -20,124 +18,139 @@ const config = {
   physics: {
     default: 'arcade',
     arcade: {
-      gravity: { y: 900 },
+      gravity: { y: 1400 },
       debug: false
     }
   },
   scene: { preload, create, update }
 };
 
-let player, cursors, scoreText, healthText;
+let player, cursors, ground;
 let score = 0;
+let scoreText, healthText;
 let health = 10;
+let jumps = 0;
+let bones, bombs;
+let clouds;
 
 new Phaser.Game(config);
 
-function preload () {
+function preload() {
   this.load.image('sky', 'https://labs.phaser.io/assets/skies/sky4.png');
   this.load.image('ground', 'https://labs.phaser.io/assets/sprites/platform.png');
-  this.load.image('bone', 'https://labs.phaser.io/assets/sprites/star.png');
+
+  // Replace this with YOUR DOG IMAGE URL later
+  this.load.image('dog', 'https://i.imgur.com/JlUvsxa.png');
+
+  this.load.image('bone', 'https://i.imgur.com/9yG6bqZ.png');
   this.load.image('bomb', 'https://labs.phaser.io/assets/sprites/bomb.png');
-  this.load.spritesheet('dog',
-    'https://labs.phaser.io/assets/sprites/mushroom-32x32.png',
-    { frameWidth: 32, frameHeight: 32 }
-  );
+  this.load.image('cloud', 'https://labs.phaser.io/assets/skies/cloud.png');
 }
 
-function create () {
-  this.add.image(480, 270, 'sky').setScrollFactor(0);
+function create() {
+  this.add.tileSprite(0,0,5000,540,'sky').setOrigin(0);
 
-  const platforms = this.physics.add.staticGroup();
+  this.physics.world.setBounds(0,0,5000,540);
 
-  for (let x = 0; x < 4000; x += 400) {
-    platforms.create(x, 520, 'ground').setScale(2).refreshBody();
+  // Clouds
+  clouds = this.add.group();
+  for (let i=0;i<20;i++){
+    let c = clouds.create(
+      Phaser.Math.Between(0,5000),
+      Phaser.Math.Between(50,200),
+      'cloud'
+    );
+    c.setAlpha(0.8);
   }
 
-  player = this.physics.add.sprite(100, 400, 'dog');
-  player.setBounce(0.1);
-  player.setCollideWorldBounds(false);
-
-  this.physics.add.collider(player, platforms);
-
-  this.cameras.main.setBounds(0, 0, 4000, 540);
-  this.physics.world.setBounds(0, 0, 4000, 540);
-  this.cameras.main.startFollow(player, true, 0.08, 0.08);
-
-  const bones = this.physics.add.group({
-    key: 'bone',
-    repeat: 50,
-    setXY: { x: 200, y: 0, stepX: 70 }
-  });
-
-  bones.children.iterate(b => {
-    b.setBounceY(Phaser.Math.FloatBetween(0.3, 0.6));
-  });
-
-  const bombs = this.physics.add.group();
-
-  for (let i = 0; i < 10; i++) {
-    let bomb = bombs.create(600 + i * 300, 0, 'bomb');
-    bomb.setBounce(1);
-    bomb.setCollideWorldBounds(true);
-    bomb.setVelocity(Phaser.Math.Between(-200, 200), 20);
+  // Ground
+  ground = this.physics.add.staticGroup();
+  for (let x=0;x<5000;x+=200){
+    ground.create(x,520,'ground').setScale(2).refreshBody();
   }
 
-  this.physics.add.collider(bones, platforms);
-  this.physics.add.collider(bombs, platforms);
+  // Player
+  player = this.physics.add.sprite(100,400,'dog');
+  player.setScale(0.15);
+  player.setCollideWorldBounds(true);
+
+  this.physics.add.collider(player, ground, () => jumps = 0);
+
+  // Camera
+  this.cameras.main.startFollow(player);
+  this.cameras.main.setBounds(0,0,5000,540);
+
+  // Collectibles
+  bones = this.physics.add.group({ allowGravity:false });
+  bombs = this.physics.add.group({ allowGravity:false });
+
+  for (let i=0;i<40;i++){
+    bones.create(
+      Phaser.Math.Between(400,4800),
+      Phaser.Math.Between(200,400),
+      'bone'
+    ).setScale(0.1);
+
+    bombs.create(
+      Phaser.Math.Between(600,4800),
+      Phaser.Math.Between(200,400),
+      'bomb'
+    ).setScale(0.5);
+  }
 
   this.physics.add.overlap(player, bones, collectBone, null, this);
-  this.physics.add.collider(player, bombs, hitBomb, null, this);
+  this.physics.add.overlap(player, bombs, hitBomb, null, this);
+
+  // UI
+  scoreText = this.add.text(16,16,'Score: 0',{font:'20px Arial',fill:'#fff'}).setScrollFactor(0);
+  healthText = this.add.text(16,40,'Health: ██████████',{font:'20px Arial',fill:'#ff0000'}).setScrollFactor(0);
 
   cursors = this.input.keyboard.createCursorKeys();
 
-  scoreText = this.add.text(16, 16, 'Score: 0', {
-    fontSize: '20px',
-    fill: '#fff'
-  }).setScrollFactor(0);
+  // Touch = jump
+  this.input.on('pointerdown', () => jump());
+}
 
-  healthText = this.add.text(16, 40, 'Health: 10', {
-    fontSize: '20px',
-    fill: '#fff'
-  }).setScrollFactor(0);
+function update() {
+  player.setVelocityX(0);
 
-  this.input.on('pointerdown', () => {
-    if (player.body.touching.down) {
-      player.setVelocityY(-520);
-    } else if (player.body.velocity.y > -200) {
-      player.setVelocityY(-420);
-    }
+  if (cursors.left.isDown) player.setVelocityX(-300);
+  if (cursors.right.isDown) player.setVelocityX(300);
+
+  if (Phaser.Input.Keyboard.JustDown(cursors.up)) jump();
+
+  // Spin while jumping
+  if (!player.body.touching.down) player.rotation += 0.15;
+  else player.rotation = 0;
+
+  // Move clouds
+  clouds.children.iterate(c=>{
+    c.x -= 0.2;
+    if (c.x < -200) c.x = 5000;
   });
 }
 
-function update () {
-  if (cursors.left.isDown) {
-    player.setVelocityX(-220);
-  } else if (cursors.right.isDown) {
-    player.setVelocityX(220);
-  } else {
-    player.setVelocityX(0);
-  }
-
-  if (cursors.up.isDown && player.body.touching.down) {
-    player.setVelocityY(-520);
+function jump() {
+  if (jumps < 2) {
+    player.setVelocityY(-600);
+    jumps++;
   }
 }
 
-function collectBone (player, bone) {
-  bone.disableBody(true, true);
-  const pts = Phaser.Math.Between(1, 20);
+function collectBone(player, bone) {
+  bone.destroy();
+  let pts = Phaser.Math.Between(1,20);
   score += pts;
   scoreText.setText('Score: ' + score);
 }
 
-function hitBomb (player, bomb) {
+function hitBomb(player, bomb) {
+  bomb.destroy();
   health--;
-  healthText.setText('Health: ' + health);
-  bomb.setVelocity(Phaser.Math.Between(-200, 200), 20);
-
+  healthText.setText('Health: ' + '█'.repeat(health));
   if (health <= 0) {
-    this.physics.pause();
-    player.setTint(0xff0000);
+    this.scene.pause();
+    alert('Game Over');
   }
 }
 </script>
