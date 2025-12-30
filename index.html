@@ -1,12 +1,13 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-<meta charset="utf-8">
+<meta charset="UTF-8">
 <title>SuperChiDog</title>
-<script src="https://cdn.jsdelivr.net/npm/phaser@3/dist/phaser.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="https://cdn.jsdelivr.net/npm/phaser@3/dist/phaser.min.js"></script>
 <style>
-  body { margin: 0; background: #5c94fc; touch-action: none; }
-  canvas { display: block; margin: auto; }
+body { margin:0; background:#5c94fc; }
+canvas { display:block; margin:0 auto; }
 </style>
 </head>
 <body>
@@ -14,114 +15,130 @@
 <script>
 const config = {
   type: Phaser.AUTO,
-  width: 900,
-  height: 500,
+  width: 960,
+  height: 540,
   physics: {
     default: 'arcade',
     arcade: {
-      gravity: { y: 1200 },
+      gravity: { y: 900 },
       debug: false
     }
   },
   scene: { preload, create, update }
 };
 
-new Phaser.Game(config);
-
-let player, platforms, bones, bombs;
+let player, cursors, scoreText, healthText;
 let score = 0;
 let health = 10;
-let scoreText, healthText;
-let moveLeft=false, moveRight=false;
-let jumpCount = 0, lastTap = 0;
 
-function preload() {
+new Phaser.Game(config);
+
+function preload () {
   this.load.image('sky', 'https://labs.phaser.io/assets/skies/sky4.png');
   this.load.image('ground', 'https://labs.phaser.io/assets/sprites/platform.png');
-
-  // 👉 PUT dog.png IN SAME FOLDER
-  this.load.image('dog', 'dog.png');
-
   this.load.image('bone', 'https://labs.phaser.io/assets/sprites/star.png');
   this.load.image('bomb', 'https://labs.phaser.io/assets/sprites/bomb.png');
+  this.load.spritesheet('dog',
+    'https://labs.phaser.io/assets/sprites/mushroom-32x32.png',
+    { frameWidth: 32, frameHeight: 32 }
+  );
 }
 
-function create() {
-  this.add.tileSprite(0,0,900,500,'sky').setOrigin(0).setScrollFactor(0);
+function create () {
+  this.add.image(480, 270, 'sky').setScrollFactor(0);
 
-  platforms = this.physics.add.staticGroup();
-  for (let i=0;i<40;i++){
-    platforms.create(i*300, 470, 'ground')
-      .setScale(2).refreshBody();
+  const platforms = this.physics.add.staticGroup();
+
+  for (let x = 0; x < 4000; x += 400) {
+    platforms.create(x, 520, 'ground').setScale(2).refreshBody();
   }
 
-  player = this.physics.add.sprite(100, 300, 'dog');
-  player.setScale(0.3);
-  player.setBounce(0);
-  player.body.setSize(player.width*0.6, player.height);
+  player = this.physics.add.sprite(100, 400, 'dog');
+  player.setBounce(0.1);
+  player.setCollideWorldBounds(false);
 
-  this.physics.add.collider(player, platforms, ()=> jumpCount=0);
+  this.physics.add.collider(player, platforms);
 
-  bones = this.physics.add.group();
-  bombs = this.physics.add.group();
+  this.cameras.main.setBounds(0, 0, 4000, 540);
+  this.physics.world.setBounds(0, 0, 4000, 540);
+  this.cameras.main.startFollow(player, true, 0.08, 0.08);
 
-  for (let i=1;i<30;i++){
-    bones.create(i*350, Phaser.Math.Between(200,350), 'bone');
-    if (i % 5 === 0) bombs.create(i*350, 420, 'bomb');
+  const bones = this.physics.add.group({
+    key: 'bone',
+    repeat: 50,
+    setXY: { x: 200, y: 0, stepX: 70 }
+  });
+
+  bones.children.iterate(b => {
+    b.setBounceY(Phaser.Math.FloatBetween(0.3, 0.6));
+  });
+
+  const bombs = this.physics.add.group();
+
+  for (let i = 0; i < 10; i++) {
+    let bomb = bombs.create(600 + i * 300, 0, 'bomb');
+    bomb.setBounce(1);
+    bomb.setCollideWorldBounds(true);
+    bomb.setVelocity(Phaser.Math.Between(-200, 200), 20);
   }
 
   this.physics.add.collider(bones, platforms);
   this.physics.add.collider(bombs, platforms);
 
   this.physics.add.overlap(player, bones, collectBone, null, this);
-  this.physics.add.overlap(player, bombs, hitBomb, null, this);
+  this.physics.add.collider(player, bombs, hitBomb, null, this);
 
-  this.cameras.main.startFollow(player);
-  this.cameras.main.setBounds(0,0,12000,500);
+  cursors = this.input.keyboard.createCursorKeys();
 
-  scoreText = this.add.text(16,16,'Score: 0',{fontSize:'20px',fill:'#fff'}).setScrollFactor(0);
-  healthText = this.add.text(16,40,'Health: 10',{fontSize:'20px',fill:'#fff'}).setScrollFactor(0);
+  scoreText = this.add.text(16, 16, 'Score: 0', {
+    fontSize: '20px',
+    fill: '#fff'
+  }).setScrollFactor(0);
 
-  this.input.on('pointerdown', p=>{
-    const now = this.time.now;
-    if (now-lastTap<300 && jumpCount<2){
-      player.setVelocityY(-550);
-      jumpCount++;
-    } else if (jumpCount<1){
-      player.setVelocityY(-550);
-      jumpCount++;
+  healthText = this.add.text(16, 40, 'Health: 10', {
+    fontSize: '20px',
+    fill: '#fff'
+  }).setScrollFactor(0);
+
+  this.input.on('pointerdown', () => {
+    if (player.body.touching.down) {
+      player.setVelocityY(-520);
+    } else if (player.body.velocity.y > -200) {
+      player.setVelocityY(-420);
     }
-    lastTap=now;
-
-    if (p.x < 450){ moveLeft=true; moveRight=false; }
-    else { moveRight=true; moveLeft=false; }
-  });
-
-  this.input.on('pointerup', ()=>{
-    moveLeft=false; moveRight=false;
   });
 }
 
-function collectBone(player,bone){
-  bone.disableBody(true,true);
-  score += Phaser.Math.Between(1,20);
-  scoreText.setText('Score: '+score);
-}
+function update () {
+  if (cursors.left.isDown) {
+    player.setVelocityX(-220);
+  } else if (cursors.right.isDown) {
+    player.setVelocityX(220);
+  } else {
+    player.setVelocityX(0);
+  }
 
-function hitBomb(player,bomb){
-  bomb.disableBody(true,true);
-  health--;
-  healthText.setText('Health: '+health);
-  if (health<=0){
-    this.scene.restart();
-    score=0; health=10;
+  if (cursors.up.isDown && player.body.touching.down) {
+    player.setVelocityY(-520);
   }
 }
 
-function update(){
-  if (moveLeft){ player.setVelocityX(-250); player.flipX=true; }
-  else if (moveRight){ player.setVelocityX(250); player.flipX=false; }
-  else player.setVelocityX(0);
+function collectBone (player, bone) {
+  bone.disableBody(true, true);
+  const pts = Phaser.Math.Between(1, 20);
+  score += pts;
+  scoreText.setText('Score: ' + score);
+}
+
+function hitBomb (player, bomb) {
+  health--;
+  healthText.setText('Health: ' + health);
+  bomb.setVelocity(Phaser.Math.Between(-200, 200), 20);
+
+  if (health <= 0) {
+    this.physics.pause();
+    player.setTint(0xff0000);
+  }
 }
 </script>
 
