@@ -1,198 +1,111 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-<meta charset="UTF-8">
+<meta charset="utf-8">
 <title>SuperChiDog</title>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="https://cdn.jsdelivr.net/npm/phaser@3/dist/phaser.js"></script>
 <style>
-html,body{margin:0;padding:0;overflow:hidden;background:#6ec6ff;font-family:Arial}
-canvas{display:block}
-#ui{
- position:fixed;top:10px;left:10px;color:#fff;
- text-shadow:2px 2px 4px #000;font-size:16px
-}
-#health span{
- display:inline-block;width:14px;height:8px;
- background:red;margin-right:2px
-}
+  body { margin: 0; background: #5c94fc; touch-action: none; }
+  canvas { display: block; margin: auto; }
 </style>
 </head>
 <body>
 
-<div id="ui">
-<div>Score: <span id="score">0</span></div>
-<div id="health"></div>
-</div>
-
-<canvas id="game"></canvas>
-
 <script>
-const canvas=document.getElementById("game");
-const ctx=canvas.getContext("2d");
-resize();
-window.onresize=resize;
-
-function resize(){
- canvas.width=innerWidth;
- canvas.height=innerHeight;
-}
-
-let score=0,health=10;
-const scoreEl=document.getElementById("score");
-const healthEl=document.getElementById("health");
-
-function drawHealth(){
- healthEl.innerHTML="";
- for(let i=0;i<health;i++){
-  let s=document.createElement("span");
-  healthEl.appendChild(s);
- }
-}
-drawHealth();
-
-const dogImg=new Image();
-dogImg.src="dog.png";
-
-let ground=canvas.height-120;
-let gravity=0.9;
-
-let player={
- x:100,y:ground-80,w:60,h:60,
- vy:0,jumps:0,rot:0
+const config = {
+  type: Phaser.AUTO,
+  width: 800,
+  height: 450,
+  physics: {
+    default: 'arcade',
+    arcade: {
+      gravity: { y: 1000 },
+      debug: false
+    }
+  },
+  scene: { preload, create, update }
 };
 
-let speed=4;
-let worldX=0;
-let items=[];
-let birds=[];
+new Phaser.Game(config);
 
-function spawn(){
- if(Math.random()<0.02){
-  items.push({
-   x:worldX+canvas.width+50,
-   y:ground-40,
-   type:Math.random()<0.75?"bone":"bomb",
-   val:Math.floor(Math.random()*20)+1
-  });
- }
- if(Math.random()<0.01){
-  birds.push({x:canvas.width+50,y:80+Math.random()*100});
- }
+let player, cursors;
+let moveLeft = false;
+let moveRight = false;
+let jumpCount = 0;
+let lastTap = 0;
+
+function preload() {
+  this.load.image('sky', 'https://labs.phaser.io/assets/skies/sky4.png');
+  this.load.image('ground', 'https://labs.phaser.io/assets/sprites/platform.png');
+  this.load.image('dog', 'dog.png'); // YOUR DOG IMAGE
 }
-setInterval(spawn,500);
 
-let lastTap=0;
-canvas.addEventListener("touchstart",e=>{
- let now=Date.now();
- if(now-lastTap<300 && player.jumps<2){
-  player.vy=-14;
-  player.jumps++;
- }
- else if(player.jumps<1){
-  player.vy=-14;
-  player.jumps++;
- }
- lastTap=now;
+function create() {
+  this.add.image(400, 225, 'sky').setScrollFactor(0);
 
- let x=e.touches[0].clientX;
- if(x<canvas.width/2)speed=2;
- else speed=6;
-});
-
-function update(){
- worldX+=speed;
- player.vy+=gravity;
- player.y+=player.vy;
-
- if(player.y>=ground-player.h){
-  player.y=ground-player.h;
-  player.vy=0;
-  player.jumps=0;
-  player.rot=0;
- }
- else player.rot+=0.1;
-
- items=items.filter(i=>{
-  i.x-=speed;
-  if(collide(player,i)){
-   if(i.type==="bone"){score+=i.val}
-   else{health--;drawHealth()}
-   scoreEl.textContent=score;
-   if(health<=0)location.reload();
-   return false;
+  const platforms = this.physics.add.staticGroup();
+  for (let i = 0; i < 25; i++) {
+    platforms.create(i * 400, 430, 'ground')
+      .setScale(2).refreshBody();
   }
-  return i.x>-50;
- });
 
- birds.forEach(b=>b.x-=2);
- birds=birds.filter(b=>b.x>-50);
+  player = this.physics.add.sprite(150, 300, 'dog');
+  player.setScale(0.3);
+  player.setCollideWorldBounds(false);
+  player.body.setSize(player.width * 0.6, player.height);
+
+  this.physics.add.collider(player, platforms, () => {
+    jumpCount = 0;
+  });
+
+  this.cameras.main.startFollow(player);
+  this.cameras.main.setBounds(0, 0, 10000, 450);
+
+  cursors = this.input.keyboard.createCursorKeys();
+
+  // TOUCH CONTROLS
+  this.input.on('pointerdown', pointer => {
+    const now = this.time.now;
+    if (now - lastTap < 300 && jumpCount < 2) {
+      player.setVelocityY(-500);
+      jumpCount++;
+    } else if (jumpCount < 1) {
+      player.setVelocityY(-500);
+      jumpCount++;
+    }
+    lastTap = now;
+
+    if (pointer.x < 400) {
+      moveLeft = true;
+      moveRight = false;
+    } else {
+      moveRight = true;
+      moveLeft = false;
+    }
+  });
+
+  this.input.on('pointerup', () => {
+    moveLeft = false;
+    moveRight = false;
+  });
 }
 
-function collide(a,b){
- return a.x<a.w+b.x &&
- a.x+a.w>b.x &&
- a.y<a.h+b.y &&
- a.y+a.h>b.y;
+function update() {
+  if (moveLeft || cursors.left.isDown) {
+    player.setVelocityX(-220);
+    player.flipX = true;
+  } else if (moveRight || cursors.right.isDown) {
+    player.setVelocityX(220);
+    player.flipX = false;
+  } else {
+    player.setVelocityX(0);
+  }
+
+  if (cursors.up.isDown && jumpCount < 2) {
+    player.setVelocityY(-500);
+    jumpCount++;
+  }
 }
-
-function drawBG(){
- ctx.fillStyle="#6ec6ff";
- ctx.fillRect(0,0,canvas.width,canvas.height);
-
- // clouds
- ctx.fillStyle="rgba(255,255,255,.8)";
- for(let i=0;i<5;i++){
-  ctx.beginPath();
-  ctx.arc((i*300-(worldX*0.2)%300),80,40,0,Math.PI*2);
-  ctx.fill();
- }
-
- // mountains
- ctx.fillStyle="#3fa34d";
- for(let i=0;i<3;i++){
-  ctx.beginPath();
-  ctx.moveTo(i*400-(worldX*0.1)%400,ground);
-  ctx.lineTo(i*400+200-(worldX*0.1)%400,200);
-  ctx.lineTo(i*400+400-(worldX*0.1)%400,ground);
-  ctx.fill();
- }
-
- // ground
- ctx.fillStyle="#8b4513";
- ctx.fillRect(0,ground,canvas.width,120);
-}
-
-function draw(){
- drawBG();
-
- // birds
- ctx.fillStyle="black";
- birds.forEach(b=>{
-  ctx.beginPath();
-  ctx.arc(b.x,b.y,4,0,Math.PI*2);
-  ctx.fill();
- });
-
- // items
- items.forEach(i=>{
-  ctx.fillStyle=i.type==="bone"?"white":"black";
-  ctx.fillRect(i.x,i.y,20,20);
- });
-
- // dog
- ctx.save();
- ctx.translate(player.x+player.w/2,player.y+player.h/2);
- ctx.rotate(player.rot);
- ctx.drawImage(dogImg,-player.w/2,-player.h/2,player.w,player.h);
- ctx.restore();
-}
-
-function loop(){
- update();
- draw();
- requestAnimationFrame(loop);
-}
-loop();
 </script>
 
 </body>
